@@ -471,6 +471,7 @@ void ShaderGlass::Process(winrt::com_ptr<ID3D11Texture2D> texture, ULONGLONG fra
 	// drop stale frames
 	if(inputFrameNo < newestFrameSeen.load())
 	{
+		PresentFrame();
 		return;
 	}
 	
@@ -1174,7 +1175,7 @@ void ShaderGlass::Process(winrt::com_ptr<ID3D11Texture2D> texture, ULONGLONG fra
         }
     }
 
-    PresentFrame();
+	PresentFrame();
 
     m_renderCounter++;
     m_prevRenderTicks = GetTickCount64();
