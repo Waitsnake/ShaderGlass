@@ -405,7 +405,7 @@ void ShaderGlass::PresentFrame()
     if(m_flipMode)
     {
         DXGI_PRESENT_PARAMETERS presentParameters {};
-        presentFlags |= DXGI_PRESENT_RESTART;
+        // presentFlags |= DXGI_PRESENT_RESTART;
         if(m_allowTearing)
         {
             presentFlags |= DXGI_PRESENT_ALLOW_TEARING;
@@ -424,6 +424,17 @@ void ShaderGlass::Process(winrt::com_ptr<ID3D11Texture2D> texture, ULONGLONG fra
     auto nowTicks            = GetTickCount64();
     auto timeSinceLastRender = nowTicks - m_prevRenderTicks;
     auto logicalFrameNo      = (int)roundf((nowTicks - m_startTicks) / 16.6666666f); // fix shaders at 60 fps
+	
+	// Remind the highest seen frame number
+	static std::atomic<int> newestFrameSeen = 0;
+	int currentNewest =
+		newestFrameSeen.load();
+	while(inputFrameNo > currentNewest &&
+		!newestFrameSeen.compare_exchange_weak(
+			currentNewest,
+			inputFrameNo))
+	{
+	}
 
     // same input
     if(inputFrameNo == m_prevInputFrameNo)
@@ -445,11 +456,6 @@ void ShaderGlass::Process(winrt::com_ptr<ID3D11Texture2D> texture, ULONGLONG fra
             return;
     }
 
-    m_frameCounter++;
-    m_prevFrameTicks     = frameTicks;
-    m_prevInputFrameNo   = inputFrameNo;
-    m_prevLogicalFrameNo = logicalFrameNo;
-
     if(!m_running || !texture)
     {
         // skip frame
@@ -460,9 +466,18 @@ void ShaderGlass::Process(winrt::com_ptr<ID3D11Texture2D> texture, ULONGLONG fra
     std::unique_lock lock(m_mutex, std::try_to_lock);
     if(!lock.owns_lock())
     {
-        // still rendering, drop frame
         return;
     }
+	// drop stale frames
+	if(inputFrameNo < newestFrameSeen.load())
+	{
+		return;
+	}
+	
+	m_frameCounter++;
+    m_prevFrameTicks     = frameTicks;
+    m_prevInputFrameNo   = inputFrameNo;
+    m_prevLogicalFrameNo = logicalFrameNo;
 
     POINT topLeft;
     topLeft.x = 0;
